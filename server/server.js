@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from 'express';
 import bodyParser from 'body-parser';
 import pg from "pg";
+import cors from "cors";
 
 const db = new pg.Client({
     user: process.env.DB_USER, 
@@ -16,17 +17,19 @@ db.connect();
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(bodyParser.urlencoded({extended: true}));
+app.use(cors());
+app.use(bodyParser.json());
 
 //get all restaurants
 app.get("/api/v1/restaurants", async (req, res) => {
     try {
-        const result = await db.query("SELECT * FROM restaurants");
+        //const result = await db.query("SELECT * FROM restaurants");
+        const restaurantsData = await db.query("SELECT * FROM restaurants LEFT JOIN(SELECT restaurant_id, COUNT(*), TRUNC(AVG(rating), 1) AS average_rating FROM reviews GROUP BY restaurant_id) reviews ON restaurants.id = reviews.restaurant_id;")
         res.status(200).json({
             status: "Success",
-            results: result.rows.length,
+            results: restaurantsData.rows.length,
             data: {
-                restaurants: result.rows,
+                restaurants: restaurantsData.rows,
             }
         });   
     } catch (error) {
@@ -38,11 +41,13 @@ app.get("/api/v1/restaurants", async (req, res) => {
 app.get("/api/v1/restaurants/:id", async (req, res) => {
     try {
         //const id = parseInt(req.params.id);
-        const result = await db.query("SELECT * FROM restaurants WHERE id = $1", [req.params.id]);
+        const restaurant = await db.query("SELECT * FROM restaurants LEFT JOIN(SELECT restaurant_id, COUNT(*), TRUNC(AVG(rating), 1) AS average_rating FROM reviews GROUP BY restaurant_id) reviews ON restaurants.id = reviews.restaurant_id WHERE id = $1", [req.params.id]);
+        const reviews = await db.query("SELECT * FROM reviews WHERE restaurant_id = $1", [req.params.id]);
         res.status(200).json({
             status: "Success",
             data: {
-                restaurants: result.rows[0],
+                restaurants: restaurant.rows[0],
+                reviews: reviews.rows,
             }
         }); 
     } catch (error) {
@@ -98,7 +103,22 @@ app.delete("/api/v1/restaurants/:id", async (req, res) => {
     } catch (error) {
         console.log(error);
     }
-    res.status(204);
+});
+
+//add a review
+app.post("/api/v1/restaurants/:id/addReview", async (req, res) => {
+    try {
+        const result = await db.query("INSERT INTO reviews(restaurant_id, name, rating, review) VALUES($1, $2, $3, $4) RETURNING *", 
+        [req.params.id, req.body.name, req.body.rating, req.body.review]);
+        res.status(201).json({
+            status: "Success",
+            data: {
+                review: result.rows[0],
+            }
+        });
+    } catch (error) {
+        console.log(error);
+    }
 });
 
 app.listen(port, () => {
