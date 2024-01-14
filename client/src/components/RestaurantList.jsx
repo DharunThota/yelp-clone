@@ -20,7 +20,7 @@ function RestaurantList(props) {
     }, []);
 
     async function handleDelete(event, id){
-        event.stopPropagation()
+        event.stopPropagation();
         try {
             const response = await RestaurantFinder.delete(`/${id}`);
             setRestaurants(restaurants.filter(restaurant => restaurant.id !== id));
@@ -30,7 +30,7 @@ function RestaurantList(props) {
     }
 
     function handleUpdate(event, id){
-        event.stopPropagation()
+        event.stopPropagation();
         navigate(`/restaurants/${id}/update`);
     }
 
